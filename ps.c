@@ -4,6 +4,7 @@
 #include <dirent.h>
 #include <ctype.h>
 #include <string.h>
+#include "argvTable.h"
 
 #define PATH_SIZE 64
 #define CMDLINE_SIZE 256
@@ -17,13 +18,14 @@ struct ProcessInfo {
 	int pgid;
 	int sid;
 	int tty;
+	char tty_u[32];
 	char status;
 	char cmdline[CMDLINE_SIZE];
 };
 
 int check_if_number(char *str);
 
-void ps() {
+void ps(struct ArgvTable *argvTable) {
 
 	DIR *dp;
 	struct dirent *dirp;
@@ -92,7 +94,7 @@ void ps() {
 				fclose(fp);
 
 				if(proc_count < MAX_PROC) {
-					struct ProcessInfo proc = {pid, uid, gid, ppid, pgid, sid, tty, status, ""};
+					struct ProcessInfo proc = {pid, uid, gid, ppid, pgid, sid, tty, "?", status, ""};
 					strcpy(proc.cmdline, cmdline);
 					procs[proc_count++] = proc;
 				}
@@ -100,9 +102,40 @@ void ps() {
 
 			}
 		}
-		// print the result	
-		for(int i=0;i<proc_count;i++) {
-			printf("%6d %6d %6d %6d %6d %6d %6d %c %s\n", procs[i].pid, procs[i].uid, procs[i].gid, procs[i].ppid, procs[i].pgid, procs[i].sid, procs[i].tty, procs[i].status, procs[i].cmdline);
+		// print the processes	
+		
+		if(argvTable->a == 0 && argvTable->x == 0) {
+			
+			int current_uid = getuid();
+			for(int i=0;i<proc_count;i++) {
+				if(procs[i].uid == current_uid && procs[i].tty != 0) {
+					printf("%6d %6d %6d %6d %6d %6d %6d %c %s\n", procs[i].pid, procs[i].uid, procs[i].gid, procs[i].ppid, procs[i].pgid, procs[i].sid, procs[i].tty, procs[i].status, procs[i].cmdline);
+				}
+			}
+
+		} else if(argvTable->a == 0 && argvTable->x == 1) {
+			
+			int current_uid = getuid();
+			for(int i=0;i<proc_count;i++) {
+				if(procs[i].uid == current_uid) {
+					printf("%6d %6d %6d %6d %6d %6d %6d %c %s\n", procs[i].pid, procs[i].uid, procs[i].gid, procs[i].ppid, procs[i].pgid, procs[i].sid, procs[i].tty, procs[i].status, procs[i].cmdline);
+				}
+			}
+
+		} else if(argvTable->a == 1 && argvTable->x == 0) {
+		
+			for(int i=0;i<proc_count;i++) {
+				if(procs[i].tty != 0) {
+					printf("%6d %6d %6d %6d %6d %6d %6d %c %s\n", procs[i].pid, procs[i].uid, procs[i].gid, procs[i].ppid, procs[i].pgid, procs[i].sid, procs[i].tty, procs[i].status, procs[i].cmdline);
+				}
+			}
+
+		} else if(argvTable->a == 1 && argvTable->x == 1) {
+			
+			for(int i=0;i<proc_count;i++) {
+				printf("%6d %6d %6d %6d %6d %6d %6d %c %s\n", procs[i].pid, procs[i].uid, procs[i].gid, procs[i].ppid, procs[i].pgid, procs[i].sid, procs[i].tty, procs[i].status, procs[i].cmdline);
+			}
+
 		}
 
 	}
