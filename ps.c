@@ -4,6 +4,7 @@
 #include <dirent.h>
 #include <ctype.h>
 #include <string.h>
+#include <sys/stat.h>
 #include "argvTable.h"
 
 #define PATH_SIZE 64
@@ -102,14 +103,115 @@ void ps(struct ArgvTable *argvTable) {
 
 			}
 		}
-		// print the processes	
+		closedir(dp);
+
+		// find tty
+		struct stat buf;
+		for(int i=0;i<proc_count;i++) {
+			if(procs[i].tty != 0) {
+				if((dp = opendir("/dev")) != NULL) {
+					while((dirp = readdir(dp)) != NULL) {
+						strcpy(path, "/dev/");
+						strcat(path, dirp->d_name);
+						stat(path, &buf);
+						if(buf.st_rdev == procs[i].tty) {
+							strcpy(procs[i].tty_u, dirp->d_name);
+						}
+					}
+				}
+				closedir(dp);
+				if((dp = opendir("/dev/pts")) != NULL) {
+					while((dirp = readdir(dp)) != NULL) {
+						strcpy(path, "/dev/pts/");
+						strcat(path, dirp->d_name);
+						stat(path, &buf);
+						if(buf.st_rdev == procs[i].tty) {
+							strcpy(procs[i].tty_u, "pts/");
+							strcat(procs[i].tty_u, dirp->d_name);
+						}
+					}
+				}
+				closedir(dp);
+			}
+		}
+
+		// sort the processes
+		int order[proc_count];
+		int proc_check[proc_count];
+		int min = 99999, index = 0;
+
+		for(int i=0;i<proc_count;i++) {
+			order[i] = 0;
+			proc_check[i] = 0;
+		}
+
+		if(argvTable->q == 0 && argvTable->r == 0 && argvTable->s == 0) {
+
+			for(int i=0;i<proc_count;i++) {
+				min = 99999, index = 0;
+				for(int j=0;j<proc_count;j++) {
+					if(!proc_check[j] && procs[j].pid < min) {
+						index = j;
+						min = procs[j].pid;
+					}
+				}
+				proc_check[index] = 1;
+				order[i] = index;
+			}
+
+		} else if(argvTable->p == 0 && argvTable->q == 1 && argvTable->r == 0 && argvTable->s == 0) {
+
+			for(int i=0;i<proc_count;i++) {
+				min = 99999, index = 0;
+				for(int j=0;j<proc_count;j++) {
+					if(!proc_check[j] && procs[j].ppid < min) {
+						index = j;
+						min = procs[j].ppid;
+					}
+				}
+				proc_check[index] = 1;
+				order[i] = index;
+			}
+
+		} else if(argvTable->p == 0 && argvTable->q == 0 && argvTable->r == 1 && argvTable->s == 0) {
+
+			for(int i=0;i<proc_count;i++) {
+				min = 99999, index = 0;
+				for(int j=0;j<proc_count;j++) {
+					if(!proc_check[j] && procs[j].pgid < min) {
+						index = j;
+						min = procs[j].pgid;
+					}
+				}
+				proc_check[index] = 1;
+				order[i] = index;
+			}
+
+		} else if(argvTable->p == 0 && argvTable->q == 0 && argvTable->r == 0 && argvTable->s == 1) {
+
+			for(int i=0;i<proc_count;i++) {
+				min = 99999, index = 0;
+				for(int j=0;j<proc_count;j++) {
+					if(!proc_check[j] && procs[j].sid < min) {
+						index = j;
+						min = procs[j].sid;
+					}
+				}
+				proc_check[index] = 1;
+				order[i] = index;
+			}
+
+		} 
 		
+
+		// print the processes
+		int pos = 0;
 		if(argvTable->a == 0 && argvTable->x == 0) {
-			
 			int current_uid = getuid();
 			for(int i=0;i<proc_count;i++) {
-				if(procs[i].uid == current_uid && procs[i].tty != 0) {
-					printf("%6d %6d %6d %6d %6d %6d %6d %c %s\n", procs[i].pid, procs[i].uid, procs[i].gid, procs[i].ppid, procs[i].pgid, procs[i].sid, procs[i].tty, procs[i].status, procs[i].cmdline);
+				pos = order[i];
+				if(procs[pos].uid == current_uid && procs[pos].tty != 0) {
+					printf("%6d %6d %6d %6d %6d %6d %10s %c %s\n", procs[pos].pid, procs[pos].uid, procs[pos].gid, procs[pos].ppid, procs[pos].pgid, procs[pos].sid, procs[pos].tty_u, procs[pos].status, procs[pos].cmdline);
 				}
 			}
 
@@ -117,30 +219,33 @@ void ps(struct ArgvTable *argvTable) {
 			
 			int current_uid = getuid();
 			for(int i=0;i<proc_count;i++) {
-				if(procs[i].uid == current_uid) {
-					printf("%6d %6d %6d %6d %6d %6d %6d %c %s\n", procs[i].pid, procs[i].uid, procs[i].gid, procs[i].ppid, procs[i].pgid, procs[i].sid, procs[i].tty, procs[i].status, procs[i].cmdline);
+				pos = order[i];
+				if(procs[pos].uid == current_uid) {
+					printf("%6d %6d %6d %6d %6d %6d %10s %c %s\n", procs[pos].pid, procs[pos].uid, procs[pos].gid, procs[pos].ppid, procs[pos].pgid, procs[pos].sid, procs[pos].tty_u, procs[pos].status, procs[pos].cmdline);
 				}
 			}
 
 		} else if(argvTable->a == 1 && argvTable->x == 0) {
 		
 			for(int i=0;i<proc_count;i++) {
-				if(procs[i].tty != 0) {
-					printf("%6d %6d %6d %6d %6d %6d %6d %c %s\n", procs[i].pid, procs[i].uid, procs[i].gid, procs[i].ppid, procs[i].pgid, procs[i].sid, procs[i].tty, procs[i].status, procs[i].cmdline);
+				pos = order[i];
+				if(procs[pos].tty != 0) {
+					printf("%6d %6d %6d %6d %6d %6d %10s %c %s\n", procs[pos].pid, procs[pos].uid, procs[pos].gid, procs[pos].ppid, procs[pos].pgid, procs[pos].sid, procs[pos].tty_u, procs[pos].status, procs[pos].cmdline);
 				}
 			}
 
 		} else if(argvTable->a == 1 && argvTable->x == 1) {
 			
 			for(int i=0;i<proc_count;i++) {
-				printf("%6d %6d %6d %6d %6d %6d %6d %c %s\n", procs[i].pid, procs[i].uid, procs[i].gid, procs[i].ppid, procs[i].pgid, procs[i].sid, procs[i].tty, procs[i].status, procs[i].cmdline);
+				pos = order[i];
+				printf("%6d %6d %6d %6d %6d %6d %10s %c %s\n", procs[pos].pid, procs[pos].uid, procs[pos].gid, procs[pos].ppid, procs[pos].pgid, procs[pos].sid, procs[pos].tty_u, procs[pos].status, procs[pos].cmdline);
 			}
 
 		}
 
 	}
 
-	return 0;
+	return;
 }
 
 int check_if_number(char *str) {

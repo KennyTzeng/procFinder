@@ -5,4 +5,4 @@ CFLAGS = -g -Wall
 	$(CC) -c $< $(CFLAGS)
 
 link: procFinder.o ps.o
-	$(CC) -o procFinder $^ -static
+	$(CC) -o procFinder $^
